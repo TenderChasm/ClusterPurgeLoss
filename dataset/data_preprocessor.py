@@ -7,8 +7,12 @@ import random
 
 @dataclass
 class RelatedMutantGroup():
+    ancestor : int = None
     eqivalents : set = field(default_factory=set)
     non_eqivalents : set = field(default_factory=set)
+
+    def copy(self):
+        return RelatedMutantGroup(self.ancestor, self.eqivalents.copy(), self.non_eqivalents.copy())
 
 
 class MutantStorage():
@@ -17,15 +21,9 @@ class MutantStorage():
         self.mutants : pd.DataFrame = mutants
         self.mutant_pairs : pd.DataFrame = mutant_pairs
         self.mutant_collection : list[RelatedMutantGroup] = MutantStorage._create_mutant_collection(mutant_pairs)
-        self.ancestral_fertility : dict[int,int] = {}
-        mutant_pairs.apply(
-            lambda x: MutantStorage._count_fertility(x, self.ancestral_fertility),
-            axis = 1)
         
         self._sanity_check()
         
-
-
     @classmethod    
     def _create_mutant_collection(cls, mutant_pairs : pd.DataFrame):
         eq_mutants_sets_dsu = UnionFind()
@@ -34,10 +32,25 @@ class MutantStorage():
             axis = 1)
         eq_mutants_sets : list[set] = eq_mutants_sets_dsu.components()
 
-        mutant_collection = [RelatedMutantGroup(eq_set) for eq_set in eq_mutants_sets]
+        mutant_collection = [RelatedMutantGroup(None,eq_set) for eq_set in eq_mutants_sets]
         mutant_pairs.apply(
             lambda x: MutantStorage._find_relative_group_for_neqmutants(x, mutant_collection),
             axis = 1)
+        
+        ancestral_fertility : dict[int,int] = {}
+        mutant_pairs.apply(
+            lambda x: MutantStorage._count_fertility(x, ancestral_fertility),
+            axis = 1)
+        
+        max_fertility_for_each_group = [0] * len(mutant_collection)
+        for ancestor,offspring_number in ancestral_fertility.items():
+            for i, group in enumerate(mutant_collection):
+                if ancestor in group.eqivalents and offspring_number > max_fertility_for_each_group[i]:
+                    group.ancestor = ancestor
+                    max_fertility_for_each_group[i] = offspring_number
+        
+        [group.eqivalents.remove(group.ancestor) for group in mutant_collection]        
+
         return mutant_collection
 
         
@@ -66,7 +79,7 @@ class MutantStorage():
                     group_found = True
             
             if not group_found:
-                mutant_collection.append(RelatedMutantGroup(set([mutant_1]), set([mutant_2])))
+                mutant_collection.append(RelatedMutantGroup(None, set([mutant_1]), set([mutant_2])))
 
     @classmethod            
     def _count_fertility(cls, mutant_pair_row : pd.Series, ancestral_fertility : dict[int,int]):
@@ -86,9 +99,11 @@ class MutantStorage():
     def generate_triplets(self, remove_empty = True):
         triplets : list[list] = []
         for group in self.mutant_collection:
+            group_clone_ancestor_to_equivalents = group.copy()
+            group_clone_ancestor_to_equivalents.eqivalents.add(group.ancestor)
             group_triplets = [(m1, m2, m3) 
-                              for (m1, m2) in combinations(group.eqivalents, 2) 
-                               for m3 in group.non_eqivalents]
+                              for (m1, m2) in combinations(group_clone_ancestor_to_equivalents.eqivalents, 2) 
+                               for m3 in group_clone_ancestor_to_equivalents.non_eqivalents]
             triplets.append(group_triplets)
         
         if remove_empty:
