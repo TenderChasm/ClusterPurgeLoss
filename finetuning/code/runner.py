@@ -258,6 +258,8 @@ def initiate(arg_string):
                         help='number of workers to load data with')
     parser.add_argument('--specimen', type=str, default = "pair",
                         help='1 of the 3 finetuning options')
+    parser.add_argument('--lambd', type=float, default = 1.0,
+                        help='weight of the DML loss function in loss combining expression' )
 
     args = parser.parse_args(arguments_tokens)
     print(datetime.now())
