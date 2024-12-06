@@ -17,6 +17,14 @@ class MutantStorage():
         self.mutants : pd.DataFrame = mutants
         self.mutant_pairs : pd.DataFrame = mutant_pairs
         self.mutant_collection : list[RelatedMutantGroup] = MutantStorage._create_mutant_collection(mutant_pairs)
+        self.ancestral_fertility : dict[int,int] = {}
+        mutant_pairs.apply(
+            lambda x: MutantStorage._count_fertility(x, self.ancestral_fertility),
+            axis = 1)
+        
+        self._sanity_check()
+        
+
 
     @classmethod    
     def _create_mutant_collection(cls, mutant_pairs : pd.DataFrame):
@@ -45,13 +53,35 @@ class MutantStorage():
             mutant_1 = mutant_pair_row['code_id_1']
             mutant_2 = mutant_pair_row['code_id_2']
 
+            group_found = False
+
             for group in mutant_collection:
                 if mutant_1 in group.eqivalents:
                     group.non_eqivalents.add(mutant_2)
+                    group_found = True
             
             for group in mutant_collection:
                 if mutant_2 in group.eqivalents:
                     group.non_eqivalents.add(mutant_1)
+                    group_found = True
+            
+            if not group_found:
+                mutant_collection.append(RelatedMutantGroup(set([mutant_1]), set([mutant_2])))
+
+    @classmethod            
+    def _count_fertility(cls, mutant_pair_row : pd.Series, ancestral_fertility : dict[int,int]):
+        if mutant_pair_row['code_id_1'] in ancestral_fertility:
+            ancestral_fertility[mutant_pair_row['code_id_1']] += 1
+        else:
+            ancestral_fertility[mutant_pair_row['code_id_1']] = 1
+
+    def _sanity_check(self):
+        pairs_of_sets = [(group.eqivalents, group.non_eqivalents) for group in self.mutant_collection]
+        all_sets = [mut_set for group in pairs_of_sets for mut_set in group]
+        intersection_of_all_sets = set.intersection(*all_sets)
+        if len(intersection_of_all_sets) != 0:
+            raise SystemError('disjoint sets are not disjoint, critical error')
+
     
     def generate_triplets(self, remove_empty = True):
         triplets : list[list] = []
