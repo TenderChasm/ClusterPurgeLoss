@@ -14,7 +14,7 @@ from tqdm import tqdm
 from model import Model
 import shlex
 
-import PairsFeatureExtractor
+import extractors.PairsFeatureExtractor as PairsFeatureExtractor
 
 cpu_cont = 16
 logger = logging.getLogger(__name__)
