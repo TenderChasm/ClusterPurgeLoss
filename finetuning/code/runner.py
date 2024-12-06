@@ -78,9 +78,9 @@ def train(args, train_dataset, model, tokenizer):
         tr_num=0
         train_loss=0
         for step, batch in enumerate(bar):
-            (inputs_ids_1,inputs_ids_2,labels)=[x.to(args.device)  for x in batch]
+            features=[x.to(args.device)  for x in batch]
             model.train()
-            loss,logits = model(inputs_ids_1,inputs_ids_2,labels)
+            loss,logits = model(*features)
 
             if args.n_gpu > 1:
                 loss = loss.mean()
@@ -153,9 +153,10 @@ def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, m
     logits=[]  
     y_trues=[]
     for batch in tqdm(dataloader):
-        (inputs_ids_1,inputs_ids_2,labels)=[x.to(args.device)  for x in batch]
+        features = [x.to(args.device)  for x in batch]
+        labels = features[-1]
         with torch.no_grad():
-            lm_loss,logit = model(inputs_ids_1,inputs_ids_2,labels)
+            lm_loss,logit = model(*features)
             eval_loss += lm_loss.mean().item()
             logits.append(logit.cpu().numpy())
             y_trues.append(labels.cpu().numpy())

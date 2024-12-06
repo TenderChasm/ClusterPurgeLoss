@@ -9,9 +9,9 @@ initiate('''
         --requires_grad 1 \
         --do_train \
         --code_db_file dataset/MutantBench_code_db_java.csv \
-        --train_data_file dataset/Mutant_A_hierarchical.csv \
-        --eval_data_file dataset/Mutant_B_hierarchical.csv \
-        --test_data_file dataset/Mutant_B_hierarchical.csv \
+        --train_data_file dataset/train_pairs.csv \
+        --eval_data_file dataset/test_pairs.csv \
+        --test_data_file dataset/test_pairs.csv \
         --delete_comments
         --workers_count 0
         --specimen pair''')
