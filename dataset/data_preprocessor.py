@@ -110,6 +110,16 @@ class MutantStorage():
             triplets = list(filter( lambda x : len(x) != 0, triplets))
         return triplets
     
+    def generate_clusters(self):
+        clusters : list[list] = []
+        for group_id, group in enumerate(self.mutant_collection):
+            cluster_pairs_positive = [(group_id, group.ancestor,positive, 1) for positive in group.eqivalents]
+            cluster_pairs_negative = [(group_id, group.ancestor,negative, 0) for negative in group.non_eqivalents]
+            clusters.append(cluster_pairs_positive+cluster_pairs_negative)
+        return clusters
+
+    
+    
     #def generate_triplets_dss(self, fr)
 
 
@@ -150,6 +160,18 @@ class TripletProcessor():
         df = pd.DataFrame(data = data, columns=['group_id', 'anchor', 'positive', 'negative'])
         df.to_csv(name, index = False)
 
+
+class ClusterProcessor(TripletProcessor):
+    
+    @staticmethod
+    def export_to_csv(clusters : list[list], name : str, shuffle = True):
+        data = [cluster_shard for cluster in clusters for cluster_shard in cluster]
+        if shuffle:
+            random.shuffle(data)
+        df = pd.DataFrame(data = data, columns=['group_id', 'centroid', 'mutant', 'sign'])
+        df.to_csv(name, index = False)
+
+
     
 
 mutants : pd.DataFrame = pd.read_csv('dataset/MutantBench_code_db_java.csv')
@@ -161,6 +183,8 @@ mutant_pairs_test : pd.DataFrame = pd.read_csv('dataset/test_pairs.csv')
 
 mutant_pairs_train = mutant_pairs_train[['code_id_1','code_id_2','label']]
 storage = MutantStorage(mutants, mutant_pairs_train)
+
+
 triplets = storage.generate_triplets()
 triplets_1 = TripletProcessor.undersample_by_nth_largest(triplets,1)
 triplets_2 = TripletProcessor.undersample_by_nth_largest(triplets,13)
@@ -182,6 +206,17 @@ print(TripletProcessor.count_total_size(triplets_2), TripletProcessor.count_cv(t
 TripletProcessor.export_to_csv(triplets, 'dataset/test_triplets_all.csv')
 TripletProcessor.export_to_csv(triplets_1, 'dataset/test_triplets_to_first.csv')
 TripletProcessor.export_to_csv(triplets_2, 'dataset/test_triplets_to_thirteenth.csv')
+
+
+storage = MutantStorage(mutants, mutant_pairs_train)
+clusters = storage.generate_clusters()
+print(ClusterProcessor.count_total_size(clusters), ClusterProcessor.count_cv(clusters))
+ClusterProcessor.export_to_csv(clusters, 'dataset/train_clusters.csv')
+
+storage = MutantStorage(mutants, mutant_pairs_test)
+clusters = storage.generate_clusters()
+print(ClusterProcessor.count_total_size(clusters), ClusterProcessor.count_cv(clusters))
+ClusterProcessor.export_to_csv(clusters, 'dataset/test_clusters.csv')
 
 
 '''a = [i for i in groups if len(i.neqs) != 0]
