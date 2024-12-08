@@ -2,16 +2,17 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
-from robertaClassificationHead import RobertaClassificationHead
+from finetuning.code.models.robertaClassificationHead import RobertaClassificationHead
 
         
-class pairModel(nn.Module):   
+class PairModel(nn.Module):   
     def __init__(self, encoder,config,tokenizer,args):
         super().__init__()
         self.encoder = encoder
         self.config=config
         self.tokenizer=tokenizer
         self.classifier=RobertaClassificationHead(config)
+        self.lambd = self.lambd
         self.args=args
         self.query = 0
     
@@ -24,7 +25,7 @@ class pairModel(nn.Module):
         outputs = outputs.reshape(-1,2,outputs.size(-1))
 
         loss_dml = 0
-        if self.args.lambd != 0.0:
+        if self.lambd != 0.0:
             outputs_normalized = torch.nn.functional.normalize(outputs, p=2, dim=-1)
             cos_sim = (outputs_normalized[:,0]*outputs_normalized[:,1]).sum(-1)
             loss_dml = CrossEntropyLoss(cos_sim, labels)
@@ -32,17 +33,17 @@ class pairModel(nn.Module):
             loss = loss_dml
 
         loss_classifier = 0
-        if self.args.lambd != 1.0:
+        if self.lambd != 1.0:
             logits = self.classifier(outputs)
             classifier_probs = F.softmax(logits)
             loss_classifier = CrossEntropyLoss(logits, labels)
             probs = classifier_probs
             loss = loss_classifier
         
-        if self.args.lambd == 0.0 or self.args.lambd == 1.0:
+        if self.lambd == 0.0 or self.lambd == 1.0:
             return loss, probs
         else:
-            return loss_dml * self.args.lambd + loss_classifier * (1 - self.args.lambd), probs
+            return loss_dml * self.lambd + loss_classifier * (1 - self.lambd), probs
         
         
 

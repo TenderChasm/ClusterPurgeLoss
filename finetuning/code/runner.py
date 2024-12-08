@@ -11,10 +11,12 @@ from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from transformers import (AdamW, get_linear_schedule_with_warmup,
                           RobertaConfig, RobertaModel, RobertaTokenizer)
 from tqdm import tqdm
-from model import Model
 import shlex
 
+from models.pairModel import PairModel
 import extractors.PairsFeatureExtractor as PairsFeatureExtractor
+from models.clusterModel import ClusterModel
+import extractors.ClustersFeatureExtractor as ClustersFeatureExtractor
 
 cpu_cont = 16
 logger = logging.getLogger(__name__)
@@ -260,6 +262,10 @@ def initiate(arg_string):
                         help='1 of the 3 finetuning options')
     parser.add_argument('--lambd', type=float, default = 1.0,
                         help='weight of the DML loss function in loss combining expression' )
+    parser.add_argument('--margin', type=float, default = 0.1,
+                        help='margin for CPL and trilet loss' )
+    parser.add_argument('--p', type=float, default = 3,
+                        help='margin for CPL and trilet loss' )
 
     args = parser.parse_args(arguments_tokens)
     print(datetime.now())
@@ -274,6 +280,13 @@ def initiate(arg_string):
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',datefmt='%m/%d/%Y %H:%M:%S',level=logging.INFO)
     logger.warning("device: %s, n_gpu: %s",device, args.n_gpu)
 
+    match args.specimen:
+        case 'pair':
+            args.extractor = PairsFeatureExtractor.TextDataset
+            args.model = PairModel
+        case 'cluster':
+            args.extractor = ClustersFeatureExtractor.TextDataset
+            args.model = ClusterModel
 
     # Set seed
     set_seed(args)
@@ -281,15 +294,11 @@ def initiate(arg_string):
     config.num_labels=1
     tokenizer = RobertaTokenizer.from_pretrained(args.tokenizer_name)
     model = RobertaModel.from_pretrained(args.model_name_or_path,config=config)    
-    model = Model(model,config,tokenizer,args)
+    model = args.model(model,config,tokenizer,args)
 
     for name, param in model.named_parameters():
         if 'classifier' not in name:
             param.requires_grad = False if args.requires_grad==0 else True
-
-    match args.specimen:
-        case 'pair':
-            args.extractor = PairsFeatureExtractor.TextDataset
 
     logger.info("Training/evaluation parameters %s", args)
     # Training

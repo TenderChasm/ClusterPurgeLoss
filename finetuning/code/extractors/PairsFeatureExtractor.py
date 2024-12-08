@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from utils import remove_comments_and_docstrings_java
 
 
-class InputFeatures(object):
+class PairsInputFeatures(object):
     """A single training/test features for a example."""
     def __init__(self,
              input_ids_1,
@@ -39,7 +39,7 @@ def convert_example_to_features(func, tokenizer, args):
     return source_tokens, source_ids
 
 
-class TextDataset(Dataset):
+class PairsTextDataset(Dataset):
     def __init__(self, tokenizer, args, file_path, code_db_path):
         logger.info("Creating features from index file at %s ", file_path)
 
@@ -75,7 +75,7 @@ class TextDataset(Dataset):
                 url1,url2,label = line
                 source_tokens_1, source_ids_1 = convert_example_to_features(url_to_code[url1],tokenizer,args)
                 source_tokens_2, source_ids_2 = convert_example_to_features(url_to_code[url2],tokenizer,args)
-                examples.append(InputFeatures(source_ids_1, source_ids_2, label))
+                examples.append(PairsInputFeatures(source_ids_1, source_ids_2, label))
 
             self.examples=examples
             torch.save(self.examples, cache_file_path)
