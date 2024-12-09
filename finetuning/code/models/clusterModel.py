@@ -17,12 +17,14 @@ class ClusterModel(nn.Module):
         self.margin = args.margin
         self.number_of_classes = args.number_of_classes
         self.p = args.p
-        self.verges = torch.zeros(args.number_of_classes, dtype=torch.float)
+        verges = torch.zeros(args.number_of_classes, dtype=torch.float, device = args.device)
+        self.register_buffer('verges', verges)
         self.args=args
         self.query = 0
     
         
     def forward(self, classes_numbers, centers_ids, mutants_ids, mutants_labels): 
+        bs,l=centers_ids.size()
 
         centers_outputs = self.encoder(centers_ids,attention_mask=centers_ids.ne(1)).last_hidden_state
         mutants_outputs = self.encoder(mutants_ids,attention_mask=mutants_ids.ne(1)).last_hidden_state
@@ -35,22 +37,35 @@ class ClusterModel(nn.Module):
         cos_sim = (centers_outputs_means_normalized * mutants_outputs_means_normalized).sum(-1)
         distances = 1 - (cos_sim + 1) / 2 #саш смотри
 
-        loss = 0
+        loss_dml = 0
         if self.training:
-            encountered_classes = torch.unique(classes_numbers)
-            for class_ in encountered_classes:
-                posdist_in_mb_for_class = torch.where(classes_numbers == class_ & mutants_labels == 1, distances, -1)
-                posdist_in_mb_for_class = posdist_in_mb_for_class[posdist_in_mb_for_class != -1]
-                if posdist_in_mb_for_class.size(dim = 0) == 0:
-                    continue
+            with torch.no_grad():
+                encountered_classes = torch.unique(classes_numbers)
+                for class_ in encountered_classes:
+                    posdist_in_mb_for_class = torch.where((classes_numbers == class_) & (mutants_labels == 1), distances, -1)
+                    posdist_in_mb_for_class = posdist_in_mb_for_class[posdist_in_mb_for_class != -1]
+                    if posdist_in_mb_for_class.size(dim = 0) == 0:
+                        continue
 
-                a = 2 / (self.p + 1)
-                decreasing_powers = torch.arange(posdist_in_mb_for_class.size(dim = 0) - 1, 0, -1, dtype=torch.float,
-                                                device = self.args.device)
-                self.verges[class_] = self.verges[class_] * (1 - a) ** (decreasing_powers[0]+1) + \
-                                        (posdist_in_mb_for_class * a * (1 - a) ** decreasing_powers).sum()
-            
-            loss = relu(distances * mutants_labels + (self.verges[classes_numbers] + self.margin - distances) * (1 - mutants_labels))
+                    if self.verges[class_] == 0:
+                        self.verges[class_] = posdist_in_mb_for_class[0]
 
-        probs = cos_sim  
+                    a = 2 / (self.p + 1)
+                    decreasing_powers = torch.arange(posdist_in_mb_for_class.size(dim = 0) - 1, -1, -1, dtype=torch.float,
+                                                    device = self.args.device)
+                    self.verges[class_] = self.verges[class_] * (1 - a) ** (decreasing_powers[0]+1) + \
+                                            (posdist_in_mb_for_class * a * (1 - a) ** decreasing_powers).sum()
+                
+            loss_dml = relu(distances * mutants_labels + (self.verges[classes_numbers] + self.margin - distances) * (1 - mutants_labels)).sum()
+        
+
+        outputs_means_normalized = torch.cat((centers_outputs_means_normalized,mutants_outputs_means_normalized),1).reshape(-1,2,768)
+
+        logits = self.classifier(outputs_means_normalized)
+        classifier_probs = F.softmax(logits)
+        loss_classifier =  torch.nn.functional.cross_entropy(logits, mutants_labels)
+
+        probs = torch.where(classifier_probs[:,0] > classifier_probs[:,1],0,1)
+        loss = loss_dml * self.lambd + loss_classifier * (1 - self.lambd)
+
         return loss, probs
