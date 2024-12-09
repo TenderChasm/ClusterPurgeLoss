@@ -58,7 +58,7 @@ class ClustersTextDataset(Dataset):
                     if center_url not in url_to_code or mutant_url not in url_to_code:
                         continue
                     mutant_label = 0 if mutant_label == '0' else 1
-                    data.append((class_number,center_url,mutant_url,mutant_label))
+                    data.append((int(class_number),center_url,mutant_url,mutant_label))
 
             
             '''data_df = pandas.DataFrame(data, colums = ['class_number','center_url','mutant_url','mutant_label'])
@@ -76,7 +76,7 @@ class ClustersTextDataset(Dataset):
 
             self.examples=examples
             torch.save(self.examples, cache_file_path)
-        args.number_of_classes = max([example.class_number for example in self.examples])
+        args.number_of_classes = max([example.class_number for example in self.examples])+1
 
     def __len__(self):
         return len(self.examples)

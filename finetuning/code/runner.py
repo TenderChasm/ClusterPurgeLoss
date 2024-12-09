@@ -19,6 +19,7 @@ from models.clusterModel import ClusterModel
 import extractors.ClustersFeatureExtractor as ClustersFeatureExtractor
 
 cpu_cont = 16
+logging.basicConfig(filename = 'log.txt', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 import warnings
@@ -149,7 +150,6 @@ def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, m
     logger.info("  Num examples = %d", len(dataset))
     logger.info("  Batch size = %d", args.eval_batch_size)
     
-    eval_loss = 0.0
     nb_eval_steps = 0
     model.eval()
     logits=[]  
@@ -159,7 +159,6 @@ def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, m
         labels = features[-1]
         with torch.no_grad():
             lm_loss,logit = model(*features)
-            eval_loss += lm_loss.mean().item()
             logits.append(logit.cpu().numpy())
             y_trues.append(labels.cpu().numpy())
         nb_eval_steps += 1
@@ -236,7 +235,7 @@ def initiate(arg_string):
                         help="Batch size per GPU/CPU for evaluation.")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
                         help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument("--learning_rate", default=2e-5, type=float,
+    parser.add_argument("--learning_rate", default=2e-6, type=float,
                         help="The initial learning rate for Adam.")
     parser.add_argument("--weight_decay", default=0.0, type=float,
                         help="Weight deay if we apply some.")
@@ -251,13 +250,15 @@ def initiate(arg_string):
 
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=30,
                         help="training epochs")
     
     parser.add_argument('--delete_comments', action='store_true',
                         help="comments in the source code is deleted")
     parser.add_argument('--workers_count', default=4, type=int,
                         help='number of workers to load data with')
+    parser.add_argument('--best_threshold', default=0.5, type=float,
+                        help='treshold of probability for the classification to flip')
     parser.add_argument('--specimen', type=str, default = "pair",
                         help='1 of the 3 finetuning options')
     parser.add_argument('--lambd', type=float, default = 1.0,
@@ -282,10 +283,10 @@ def initiate(arg_string):
 
     match args.specimen:
         case 'pair':
-            args.extractor = PairsFeatureExtractor.TextDataset
+            args.extractor = PairsFeatureExtractor.PairsTextDataset
             args.model = PairModel
         case 'cluster':
-            args.extractor = ClustersFeatureExtractor.TextDataset
+            args.extractor = ClustersFeatureExtractor.ClustersTextDataset
             args.model = ClusterModel
 
     # Set seed
@@ -293,6 +294,8 @@ def initiate(arg_string):
     config = RobertaConfig.from_pretrained(args.config_name if args.config_name else args.model_name_or_path)
     config.num_labels=1
     tokenizer = RobertaTokenizer.from_pretrained(args.tokenizer_name)
+    if args.do_train:
+        train_dataset = args.extractor(tokenizer, args, file_path=args.train_data_file, code_db_path= args.code_db_file)
     model = RobertaModel.from_pretrained(args.model_name_or_path,config=config)    
     model = args.model(model,config,tokenizer,args)
 
@@ -303,7 +306,6 @@ def initiate(arg_string):
     logger.info("Training/evaluation parameters %s", args)
     # Training
     if args.do_train:
-        train_dataset = args.extractor(tokenizer, args, file_path=args.train_data_file, code_db_path= args.code_db_file)
         train(args, train_dataset, model, tokenizer)
 
     # Evaluation
@@ -313,14 +315,14 @@ def initiate(arg_string):
         output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix))  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
-        results = evaluate(args, model, tokenizer, best_threshold=0.5)
+        results = evaluate(args, model, tokenizer, best_treshold = args.best_threshold)
         
     if args.do_test:
         checkpoint_prefix = 'checkpoint-best-f1/model.bin'
         output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix))  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
-        results = test(args, model, tokenizer,best_threshold=0.5)
+        results = test(args, model, tokenizer,best_treshold = args.best_threshold)
 
     print(datetime.now())
     return results

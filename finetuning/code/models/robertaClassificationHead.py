@@ -11,7 +11,7 @@ class RobertaClassificationHead(nn.Module):
         self.out_proj = nn.Linear(config.hidden_size, 2)
 
     def forward(self, features, **kwargs):
-        x = x.reshape(-1,features.size(-1)*2)
+        x = features.reshape(-1,features.size(-1)*2)
         x = self.dropout(x)
         x = self.dense(x)
         x = torch.tanh(x)
