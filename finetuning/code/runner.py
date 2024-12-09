@@ -17,6 +17,8 @@ from models.pairModel import PairModel
 import extractors.PairsFeatureExtractor as PairsFeatureExtractor
 from models.clusterModel import ClusterModel
 import extractors.ClustersFeatureExtractor as ClustersFeatureExtractor
+from models.clusterModelGGMA import ClusterModelGGMA
+import extractors.ClustersFeatureExtractorGGMA as ClustersFeatureExtractorGGMA
 
 cpu_cont = 16
 logging.basicConfig(filename = 'log.txt', level=logging.DEBUG)
@@ -218,7 +220,7 @@ def initiate(arg_string):
     parser.add_argument("--tokenizer_name", default="", type=str,
                         help="Optional pretrained tokenizer name or path if not the same as model_name_or_path")
 
-    parser.add_argument("--code_length", default=512, type=int,
+    parser.add_argument("--code_length", default=256, type=int,
                         help="Optional code input sequence length after tokenization.") 
     parser.add_argument("--do_train", action='store_true',
                         help="Whether to run training.")
@@ -267,6 +269,8 @@ def initiate(arg_string):
                         help='margin for CPL and trilet loss' )
     parser.add_argument('--p', type=float, default = 3,
                         help='margin for CPL and trilet loss' )
+    parser.add_argument("--data_flow_length", default=64, type=int,
+                        help="Optional Data Flow input sequence length after tokenization.") 
 
     args = parser.parse_args(arguments_tokens)
     print(datetime.now())
@@ -288,6 +292,9 @@ def initiate(arg_string):
         case 'cluster':
             args.extractor = ClustersFeatureExtractor.ClustersTextDataset
             args.model = ClusterModel
+        case 'clusterGGMA':
+            args.extractor = ClustersFeatureExtractorGGMA.ClustersTextDatasetGGMA
+            args.model = ClusterModelGGMA
 
     # Set seed
     set_seed(args)
