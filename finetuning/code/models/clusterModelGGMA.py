@@ -15,6 +15,8 @@ class ClusterModelGGMA(nn.Module):
         self.classifier=RobertaClassificationHead(config)
         self.lambd = args.lambd
         self.margin = args.margin
+        self.coeff = args.coeff
+        self.positives_coeff = args.positives_coeff
         self.number_of_classes = args.number_of_classes
         self.p = args.p
         verges = torch.zeros(args.number_of_classes, dtype=torch.float, device = args.device)
@@ -39,15 +41,14 @@ class ClusterModelGGMA(nn.Module):
         inputs_embeddings=inputs_embeddings*(~nodes_mask)[:,:,None]+avg_embeddings*nodes_mask[:,:,None]    
         
         outputs = self.encoder(inputs_embeds=inputs_embeddings,attention_mask=attn_mask,position_ids=position_idx).last_hidden_state
+        outputs_normalized = torch.nn.functional.normalize(outputs, p=2, dim=-1)
 
         mutants_labels = labels
-        centers_outputs = outputs[0::2]
-        mutants_outputs = outputs[1::2]
-        centers_outputs_means = centers_outputs[:, 0, :].reshape(bs, centers_outputs.size(-1))
-        mutants_outputs_means = mutants_outputs[:, 0, :].reshape(bs, mutants_outputs.size(-1))
+        centers_outputs_normalized = outputs_normalized[0::2]
+        mutants_outputs_normalized = outputs_normalized[1::2]
+        centers_outputs_means_normalized = centers_outputs_normalized[:, 0, :].reshape(bs, centers_outputs_normalized.size(-1))
+        mutants_outputs_means_normalized = mutants_outputs_normalized[:, 0, :].reshape(bs, mutants_outputs_normalized.size(-1))
 
-        centers_outputs_means_normalized = torch.nn.functional.normalize(centers_outputs_means, p=2, dim=-1)
-        mutants_outputs_means_normalized = torch.nn.functional.normalize(mutants_outputs_means, p=2, dim=-1)
         cos_sim = (centers_outputs_means_normalized * mutants_outputs_means_normalized).sum(-1)
         distances = 1 - (cos_sim + 1) / 2 #саш смотри
 
@@ -70,7 +71,7 @@ class ClusterModelGGMA(nn.Module):
                     self.verges[class_] = self.verges[class_] * (1 - a) ** (decreasing_powers[0]+1) + \
                                             (posdist_in_mb_for_class * a * (1 - a) ** decreasing_powers).sum()
                 
-            loss_dml = relu(distances * mutants_labels + (self.verges[classes_numbers] + self.margin - distances) * (1 - mutants_labels)).sum()
+            loss_dml = relu(distances *  self.positives_coeff * (1 / self.coeff) * mutants_labels + (self.verges[classes_numbers] + self.margin - distances * self.coeff) * (1 - mutants_labels)).sum()
         
 
         outputs_means_normalized = torch.cat((centers_outputs_means_normalized,mutants_outputs_means_normalized),1).reshape(-1,2,768)

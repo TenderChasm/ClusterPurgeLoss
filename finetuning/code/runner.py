@@ -21,7 +21,7 @@ from models.clusterModelGGMA import ClusterModelGGMA
 import extractors.ClustersFeatureExtractorGGMA as ClustersFeatureExtractorGGMA
 
 cpu_cont = 16
-logging.basicConfig(filename = 'log.txt', level=logging.DEBUG)
+#logging.basicConfig(filename = 'log.txt', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 import warnings
@@ -183,6 +183,7 @@ def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, m
         f"{mode}_threshold":best_threshold,
         
     }
+    args.results.append(result)
 
     logger.info(f"***** {mode} results *****")
     for key in sorted(result.keys()):
@@ -237,7 +238,7 @@ def initiate(arg_string):
                         help="Batch size per GPU/CPU for evaluation.")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
                         help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument("--learning_rate", default=2e-6, type=float,
+    parser.add_argument("--learning_rate", default=2e-5, type=float,
                         help="The initial learning rate for Adam.")
     parser.add_argument("--weight_decay", default=0.0, type=float,
                         help="Weight deay if we apply some.")
@@ -252,7 +253,7 @@ def initiate(arg_string):
 
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
-    parser.add_argument('--epochs', type=int, default=30,
+    parser.add_argument('--epochs', type=int, default=20,
                         help="training epochs")
     
     parser.add_argument('--delete_comments', action='store_true',
@@ -271,6 +272,10 @@ def initiate(arg_string):
                         help='margin for CPL and trilet loss' )
     parser.add_argument("--data_flow_length", default=64, type=int,
                         help="Optional Data Flow input sequence length after tokenization.") 
+    parser.add_argument("--coeff", default=1, type=float,
+                        help="i need") 
+    parser.add_argument("--positives_coeff", default=1, type=float,
+                        help="i need") 
 
     args = parser.parse_args(arguments_tokens)
     print(datetime.now())
@@ -280,6 +285,7 @@ def initiate(arg_string):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.n_gpu = torch.cuda.device_count()
     args.device = device
+    args.results = []
 
     # Setup logging
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',datefmt='%m/%d/%Y %H:%M:%S',level=logging.INFO)
@@ -332,5 +338,5 @@ def initiate(arg_string):
         results = test(args, model, tokenizer,best_treshold = args.best_threshold)
 
     print(datetime.now())
-    return results
+    return args.results
 
