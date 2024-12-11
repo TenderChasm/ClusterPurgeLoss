@@ -82,6 +82,8 @@ def train(args, train_dataset, model, tokenizer):
         bar = tqdm(train_dataloader,total=len(train_dataloader))
         tr_num=0
         train_loss=0
+        #if idx > 0 and idx % 3 == 0:
+            #args.dml_amplification /= 2
         for step, batch in enumerate(bar):
             features=[x.to(args.device)  for x in batch]
             model.train()
@@ -275,6 +277,8 @@ def initiate(arg_string):
     parser.add_argument("--coeff", default=1, type=float,
                         help="i need") 
     parser.add_argument("--positives_coeff", default=1, type=float,
+                        help="i need") 
+    parser.add_argument("--dml_amplification", default=1, type=float,
                         help="i need") 
 
     args = parser.parse_args(arguments_tokens)

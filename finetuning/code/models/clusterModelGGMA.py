@@ -19,7 +19,7 @@ class ClusterModelGGMA(nn.Module):
         self.positives_coeff = args.positives_coeff
         self.number_of_classes = args.number_of_classes
         self.p = args.p
-        verges = torch.zeros(args.number_of_classes, dtype=torch.float, device = args.device)
+        verges = torch.zeros((2,args.number_of_classes), dtype=torch.float, device = args.device)
         self.register_buffer('verges', verges)
         self.args=args
         self.query = 0
@@ -51,29 +51,33 @@ class ClusterModelGGMA(nn.Module):
 
         cos_sim = (centers_outputs_means_normalized * mutants_outputs_means_normalized).sum(-1)
         distances = 1 - (cos_sim + 1) / 2 #саш смотри
+        #distances = (centers_outputs_means_normalized - mutants_outputs_means_normalized).pow(2).sum(1).sqrt()
 
         loss_dml = 0
         if self.training:
             with torch.no_grad():
                 encountered_classes = torch.unique(classes_numbers)
                 for class_ in encountered_classes:
-                    posdist_in_mb_for_class = torch.where((classes_numbers == class_) & (mutants_labels == 1), distances, -1)
-                    posdist_in_mb_for_class = posdist_in_mb_for_class[posdist_in_mb_for_class != -1]
-                    if posdist_in_mb_for_class.size(dim = 0) == 0:
-                        continue
+                    for sign in range(0,2):
+                        dist_in_mb_for_class = torch.where((classes_numbers == class_) & (mutants_labels == sign), distances, -1)
+                        dist_in_mb_for_class = dist_in_mb_for_class[dist_in_mb_for_class != -1]
+                        if dist_in_mb_for_class.size(dim = 0) == 0:
+                            continue
 
-                    if self.verges[class_] == 0:
-                        self.verges[class_] = posdist_in_mb_for_class[0]
+                        if self.verges[sign][class_] == 0:
+                            self.verges[sign][class_] = dist_in_mb_for_class[0]
 
-                    a = 2 / (self.p + 1)
-                    decreasing_powers = torch.arange(posdist_in_mb_for_class.size(dim = 0) - 1, -1, -1, dtype=torch.float,
-                                                    device = self.args.device)
-                    self.verges[class_] = self.verges[class_] * (1 - a) ** (decreasing_powers[0]+1) + \
-                                            (posdist_in_mb_for_class * a * (1 - a) ** decreasing_powers).sum()
+                        a = 2 / (self.p + 1)
+                        decreasing_powers = torch.arange(dist_in_mb_for_class.size(dim = 0) - 1, -1, -1, dtype=torch.float,
+                                                        device = self.args.device)
+                        self.verges[sign][class_] = self.verges[sign][class_] * (1 - a) ** (decreasing_powers[0]+1) + \
+                                                (dist_in_mb_for_class * a * (1 - a) ** decreasing_powers).sum()
                 
-            loss_dml = relu(distances *  self.positives_coeff * (1 / self.coeff) * mutants_labels + (self.verges[classes_numbers] + self.margin - distances * self.coeff) * (1 - mutants_labels)).sum()
+            loss_dml = (relu(distances - self.verges[0][classes_numbers] + self.margin)**2 * mutants_labels  + \
+                            torch.sqrt(relu(self.verges[1][classes_numbers] + self.margin - distances)) * (1 - mutants_labels)).sum()
+            loss_dml = loss_dml / bs * self.args.dml_amplification
+            #loss_dml = loss_dml / ((1 - mutants_labels).sum() + 0.0001) * self.args.dml_amplification
         
-
         outputs_means_normalized = torch.cat((centers_outputs_means_normalized,mutants_outputs_means_normalized),1).reshape(-1,2,768)
 
         logits = self.classifier(outputs_means_normalized)
