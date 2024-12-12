@@ -25,7 +25,7 @@ class ClusterModelGGMA(nn.Module):
         self.query = 0
     
         
-    def forward(self, classes_numbers,inputs_ids_1,position_idx_1,attn_mask_1,inputs_ids_2,position_idx_2,attn_mask_2,labels): 
+    def forward(self, classes_numbers,inputs_ids_1,position_idx_1,attn_mask_1,inputs_ids_2,position_idx_2,attn_mask_2,url1,url2,labels): 
         bs,l=inputs_ids_1.size()
 
         inputs_ids=torch.cat((inputs_ids_1.unsqueeze(1),inputs_ids_2.unsqueeze(1)),1).view(bs*2,l)
@@ -48,6 +48,9 @@ class ClusterModelGGMA(nn.Module):
         mutants_outputs_normalized = outputs_normalized[1::2]
         centers_outputs_means_normalized = centers_outputs_normalized[:, 0, :].reshape(bs, centers_outputs_normalized.size(-1))
         mutants_outputs_means_normalized = mutants_outputs_normalized[:, 0, :].reshape(bs, mutants_outputs_normalized.size(-1))
+
+        if self.args.do_test:
+            self.record_embeddings(centers_outputs_means_normalized,url1,mutants_outputs_means_normalized,url2, labels)
 
         cos_sim = (centers_outputs_means_normalized * mutants_outputs_means_normalized).sum(-1)
         distances = 1 - (cos_sim + 1) / 2 #саш смотри
@@ -88,3 +91,16 @@ class ClusterModelGGMA(nn.Module):
         loss = loss_dml * self.lambd + loss_classifier * (1 - self.lambd)
 
         return loss, probs
+    
+    def record_embeddings(self, embedding1_tensor, url1_tensor, embedding2_tensor, url2_tensor, labels):
+        for i in range(embedding1_tensor.size(0)):
+            url1 = int(url1_tensor[i].cpu().numpy())
+            embedding1 = embedding1_tensor[i].cpu().numpy()
+            url2 = int(url2_tensor[i].cpu().numpy())
+            embedding2 = embedding2_tensor[i].cpu().numpy()
+            label = int(labels[i].cpu().numpy())
+
+            if url1 not in self.args.embeddings:
+                self.args.embeddings[url1] = ([],[])
+                self.args.embeddings[url1][1].append((url1, embedding1))
+            self.args.embeddings[url1][label].append((url2, embedding2))  

@@ -132,7 +132,7 @@ def train(args, train_dataset, model, tokenizer):
                         if not os.path.exists(output_dir):
                             os.makedirs(output_dir)                        
                         model_to_save = model.module if hasattr(model,'module') else model
-                        output_dir = os.path.join(output_dir, '{}'.format('model.bin')) 
+                        output_dir = os.path.join(output_dir, '{}'.format('model_new.bin')) 
                         torch.save(model_to_save.state_dict(), output_dir)
                         logger.info("Saving model checkpoint to %s", output_dir)
 
@@ -328,18 +328,22 @@ def initiate(arg_string):
     # Evaluation
     results = {}
     if args.do_eval:
-        checkpoint_prefix = 'checkpoint-best-f1/model.bin'
+        checkpoint_prefix = 'checkpoint-best-f1/model_new.bin'
         output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix))  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
         results = evaluate(args, model, tokenizer, best_treshold = args.best_threshold)
         
     if args.do_test:
-        checkpoint_prefix = 'checkpoint-best-f1/model.bin'
-        output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix))  
+        checkpoint_prefix = 'checkpoint-best-f1/model_new.bin'
+        output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix)) 
+        args.embeddings = {}  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
         results = test(args, model, tokenizer,best_treshold = args.best_threshold)
+        embeddings_file = open('embeddings_new_model_norm', 'wb')
+        pickle.dump(args.embeddings, embeddings_file)
+        embeddings_file.close()
 
     print(datetime.now())
     return args.results

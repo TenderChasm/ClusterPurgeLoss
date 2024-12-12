@@ -27,7 +27,9 @@ class ClustersInputFeaturesGGMA(object):
             position_idx_2,
             dfg_to_code_2,
             dfg_to_dfg_2,
-            label
+            label,
+            center_url,
+            mutant_url
 
     ):
         self.class_number = class_number
@@ -48,11 +50,13 @@ class ClustersInputFeaturesGGMA(object):
         
         #label
         self.label=label
+        self.center_url = center_url
+        self.mutant_url = mutant_url
         
 
 def convert_examples_to_features(item):
     #source
-    class_number,func1,func2,label,tokenizer,args=item
+    class_number,func1,func2,label,tokenizer,args, center_url, mutant_url=item
     parser=parsers['java']
     cache = {}
     for func_num,func in enumerate([func1,func2]):
@@ -96,7 +100,7 @@ def convert_examples_to_features(item):
     source_tokens_2,source_ids_2,position_idx_2,dfg_to_code_2,dfg_to_dfg_2=cache[1]   
     return ClustersInputFeaturesGGMA(class_number,source_tokens_1,source_ids_1,position_idx_1,dfg_to_code_1,dfg_to_dfg_1,
                    source_tokens_2,source_ids_2,position_idx_2,dfg_to_code_2,dfg_to_dfg_2,
-                     label)
+                     label,center_url,mutant_url)
 
 
 class ClustersTextDatasetGGMA(Dataset):
@@ -142,7 +146,8 @@ class ClustersTextDatasetGGMA(Dataset):
             examples = []
             for line in tqdm(data,total=len(data)):
                 class_number,center_url,mutant_url,mutant_label = line
-                examples.append(convert_examples_to_features((class_number, url_to_code[center_url], url_to_code[mutant_url], mutant_label, tokenizer, args)))
+                examples.append(convert_examples_to_features((class_number, url_to_code[center_url], url_to_code[mutant_url],
+                                                               mutant_label, tokenizer, args, int(center_url), int(mutant_url))))
 
             self.examples=examples
             torch.save(self.examples, cache_file_path)
@@ -205,5 +210,7 @@ class ClustersTextDatasetGGMA(Dataset):
                 torch.tensor(attn_mask_1), 
                 torch.tensor(self.examples[item].input_ids_2),
                 torch.tensor(self.examples[item].position_idx_2),
-                torch.tensor(attn_mask_2),                 
+                torch.tensor(attn_mask_2),
+                torch.tensor(self.examples[item].center_url),
+                torch.tensor(self.examples[item].mutant_url),           
                 torch.tensor(self.examples[item].label))
