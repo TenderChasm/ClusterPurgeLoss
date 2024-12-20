@@ -139,7 +139,7 @@ def train(args, train_dataset, model, tokenizer):
 
 def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, mode = 'eval'):
     
-    data_file = args.eval_data_file if mode == 'eval' else args.eval_train_file
+    data_file = args.eval_data_file if mode == 'eval' else args.test_data_file
 
     dataset = args.extractor(tokenizer, args, file_path=data_file, code_db_path = args.code_db_file)
     sampler = SequentialSampler(dataset)
@@ -194,7 +194,7 @@ def evaluate(args, model, tokenizer, best_threshold, eval_when_training=False, m
     return result
 
 def test(args, model, tokenizer, best_threshold=0):
-    return eval(args, model, tokenizer, best_threshold, mode = 'test')
+    return evaluate(args, model, tokenizer, best_threshold, mode = 'test')
 
 
 def initiate(arg_string):
@@ -255,7 +255,7 @@ def initiate(arg_string):
 
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=30,
                         help="training epochs")
     
     parser.add_argument('--delete_comments', action='store_true',
@@ -279,6 +279,8 @@ def initiate(arg_string):
     parser.add_argument("--positives_coeff", default=1, type=float,
                         help="i need") 
     parser.add_argument("--dml_amplification", default=1, type=float,
+                        help="i need") 
+    parser.add_argument("--number_of_classes", default=52, type=float,
                         help="i need") 
 
     args = parser.parse_args(arguments_tokens)
@@ -332,7 +334,7 @@ def initiate(arg_string):
         output_dir = os.path.join(args.output_dir, '{}'.format(checkpoint_prefix))  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
-        results = evaluate(args, model, tokenizer, best_treshold = args.best_threshold)
+        results = evaluate(args, model, tokenizer, best_threshold = args.best_threshold)
         
     if args.do_test:
         checkpoint_prefix = 'checkpoint-best-f1/model_new.bin'
@@ -340,7 +342,7 @@ def initiate(arg_string):
         args.embeddings = {}  
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
-        results = test(args, model, tokenizer,best_treshold = args.best_threshold)
+        results = test(args, model, tokenizer,best_threshold = args.best_threshold)
         embeddings_file = open('embeddings_new_model_norm', 'wb')
         pickle.dump(args.embeddings, embeddings_file)
         embeddings_file.close()
